@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecteur NFC vers Google Sheets</title>
+    <style>
+        body { font-family: system-ui, sans-serif; text-align: center; padding: 20px; background-color: #f0f4f8; }
+        .container { max-width: 400px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { font-size: 1.5rem; color: #333; margin-bottom: 5px; }
+        button { background-color: #007bff; color: white; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 8px; cursor: pointer; width: 100%; transition: background 0.3s; }
+        button:hover { background-color: #0056b3; }
+        #status { margin-top: 20px; font-weight: 500; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d1e7dd; color: #0f5132; }
+        .error { background-color: #f8d7da; color: #842029; }
+        .loading { background-color: #fff3cd; color: #664d03; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Scan NFC > Google Sheets</h1>
+        <p>Approchez la carte pour l'enregistrer dans le cloud.</p>
+        
+        <button id="scan-btn">Activer le lecteur NFC</button>
+        <div id="status">En attente d'activation...</div>
+    </div>
+
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxuL4_5XGKC3VK-Rh7mUOsTy0sqG4N_p5C4DR5Gdy8CVQsTfXXaI4FHUNcLnWs5Jbo4/exec";
+
+        const scanBtn = document.getElementById('scan-btn');
+        const statusDiv = document.getElementById('status');
+
+        scanBtn.addEventListener('click', async () => {
+            if (!('NDEFReader' in window)) {
+                setStatus("Web NFC non supporté sur ce navigateur.", "error");
+                return;
+            }
+
+            try {
+                const ndef = new NDEFReader();
+                await ndef.scan();
+                setStatus("Prêt ! Approchez une carte...", "success");
+
+                ndef.addEventListener("reading", async ({ serialNumber }) => {
+                    if (serialNumber) {
+                        const uid = serialNumber.toUpperCase();
+                        setStatus(`Carte lue (${uid}). Envoi en cours...`, "loading");
+                        
+                        // Envoi des données vers Google Sheets
+                        try {
+                            const response = await fetch(SCRIPT_URL, {
+                                method: 'POST',
+                                // L'utilisation de text/plain permet d'éviter les erreurs CORS avec Google Scripts
+                                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                body: JSON.stringify({ uid: uid })
+                            });
+
+                            if (response.ok) {
+                                setStatus(`Succès ! UID ${uid} enregistré.`, "success");
+                            } else {
+                                setStatus("Erreur lors de l'envoi au serveur.", "error");
+                            }
+                        } catch (err) {
+                            setStatus("Erreur de connexion internet.", "error");
+                        }
+                    }
+                });
+            } catch (error) {
+                setStatus(`Erreur NFC : ${error.message}`, "error");
+            }
+        });
+
+        function setStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = type;
+        }
+    </script>
+</body>
+</html>
