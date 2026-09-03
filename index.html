@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecteur NFC Web (UID DESFire)</title>
+    <style>
+        body { font-family: system-ui, sans-serif; text-align: center; padding: 20px; background-color: #f0f4f8; }
+        .container { max-width: 400px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { font-size: 1.5rem; color: #333; margin-bottom: 5px; }
+        p { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
+        button { background-color: #007bff; color: white; border: none; padding: 15px 30px; font-size: 1.1rem; border-radius: 8px; cursor: pointer; width: 100%; transition: background 0.3s; }
+        button:hover { background-color: #0056b3; }
+        #status { margin-top: 20px; font-weight: 500; color: #555; }
+        #uid-display { margin-top: 15px; font-size: 1.2rem; background: #e9ecef; padding: 15px; border-radius: 8px; word-break: break-all; min-height: 24px; font-family: monospace; font-weight: bold; }
+        .success { color: #198754 !important; }
+        .error { color: #dc3545 !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Lecteur NFC (UID)</h1>
+        <p>Touchez le bouton puis approchez votre carte MIFARE DESFire du dos de votre smartphone.</p>
+        
+        <button id="scan-btn">Activer le lecteur NFC</button>
+        <div id="status">En attente d'activation...</div>
+        <div id="uid-display">UID : Aucun</div>
+    </div>
+
+    <script>
+        const scanBtn = document.getElementById('scan-btn');
+        const statusDiv = document.getElementById('status');
+        const uidDisplay = document.getElementById('uid-display');
+
+        scanBtn.addEventListener('click', async () => {
+            // Vérification de la compatibilité du navigateur
+            if (!('NDEFReader' in window)) {
+                statusDiv.textContent = "Erreur : Web NFC n'est pas supporté. Utilisez Chrome sur Android.";
+                statusDiv.className = 'error';
+                return;
+            }
+
+            try {
+                const ndef = new NDEFReader();
+                // Demande l'autorisation et lance le scan
+                await ndef.scan();
+                
+                statusDiv.textContent = "Prêt ! Approchez votre carte...";
+                statusDiv.className = 'success';
+                uidDisplay.textContent = "UID : ...";
+                uidDisplay.style.color = "#333";
+                
+                // Gère les erreurs de lecture (ex: carte retirée trop vite)
+                ndef.addEventListener("readingerror", () => {
+                    statusDiv.textContent = "Erreur de lecture. Réessayez.";
+                    statusDiv.className = 'error';
+                });
+
+                // Se déclenche quand une carte est détectée
+                ndef.addEventListener("reading", ({ serialNumber }) => {
+                    if (serialNumber) {
+                        statusDiv.textContent = "Lecture réussie !";
+                        statusDiv.className = 'success';
+                        // Affiche l'UID (formaté avec des deux-points, ex: 04:A1:B2:C3:D4:E5:F6)
+                        uidDisplay.textContent = `UID : ${serialNumber.toUpperCase()}`;
+                        uidDisplay.style.color = "#198754";
+                    } else {
+                        statusDiv.textContent = "Carte lue, mais aucun UID accessible.";
+                        statusDiv.className = 'error';
+                    }
+                });
+
+            } catch (error) {
+                statusDiv.textContent = `Erreur : ${error.message}`;
+                statusDiv.className = 'error';
+            }
+        });
+    </script>
+</body>
+</html>
