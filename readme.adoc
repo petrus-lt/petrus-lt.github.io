@@ -1,0 +1,78 @@
+= Prototype : Lecteur Web NFC vers Google Sheets
+:toc: macro
+
+Application web statique permettant de lire l'UID d'une carte NFC depuis Chrome sur Android et d'enregistrer l'historique en temps réel dans une base de données Google Sheets via Google Apps Script.
+
+toc::[]
+
+== Prérequis
+
+* Un smartphone Android avec Google Chrome.
+* Des cartes ou badges NFC (formatés NDEF pour la compatibilité Web NFC).
+* Un compte Google (pour héberger la base de données).
+* Un hébergement web statique avec HTTPS (ex: GitHub Pages).
+
+== 1. Configuration de la base de données (Google Sheets)
+
+1. Créez un nouveau tableur sur https://sheets.google.com[Google Sheets].
+2. Nommez les en-têtes dans la première ligne : inscrivez `Date` en *A1* et `UID` en *B1*.
+3. Dans le menu, naviguez vers *Extensions* > *Apps Script*.
+4. Remplacez le code existant par le contenu du fichier `sheets.gs` ci-dessous :
+
+.sheets.gs
+[source,javascript]
+----
+function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  
+  try {
+    var data = JSON.parse(e.postData.contents);
+    
+    // Vérification du jeton secret pour bloquer le spam basique
+    if (data.token !== "MON_MOT_DE_PASSE_SECRET_123!") {
+      return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": "Accès refusé"}))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    var date = new Date();
+    var dateString = Utilities.formatDate(date, Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm:ss");
+    
+    sheet.appendRow([dateString, data.uid]);
+    
+    return ContentService.createTextOutput(JSON.stringify({"status": "success"}))
+                         .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": error.message}))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+----
+
+=== Déploiement du script (Création du Webhook)
+
+1. Cliquez sur l'icône *Enregistrer* (disquette).
+2. En haut à droite de l'éditeur, cliquez sur *Déployer* > *Nouvelle implémentation*.
+3. Cliquez sur la roue crantée (Sélectionner le type) et choisissez *Application Web*.
+4. Configurez les accès :
+* *Exécuter en tant que :* Moi
+* *Qui a accès :* Tous les utilisateurs
+5. Validez le déploiement (autorisez les alertes de sécurité Google en allant dans les paramètres avancés). 
+6. *Copiez l'URL de l'application Web* générée.
+
+== 2. Configuration de l'Application Web (Front-end)
+
+1. Éditez votre fichier HTML principal.
+2. Localisez la constante `SCRIPT_URL` dans la balise `<script>`.
+3. Remplacez sa valeur par l'URL copiée lors de l'étape précédente.
+4. Assurez-vous que la valeur `token` envoyée dans le corps de votre requête `fetch()` correspond exactement à la chaîne configurée dans votre script `sheets.gs` (ici : `MON_MOT_DE_PASSE_SECRET_123!`).
+
+== 3. Déploiement et Test
+
+1. Poussez votre fichier HTML sur votre dépôt distant (GitHub).
+2. Activez *GitHub Pages* depuis les paramètres de votre dépôt (Settings > Pages > Deploy from a branch).
+3. Ouvrez l'URL HTTPS publique de votre projet depuis Chrome sur un smartphone Android compatible.
+4. Cliquez sur le bouton *Activer le lecteur NFC*, scannez une carte et observez l'apparition de l'UID en temps réel dans votre tableur Google Sheets.
+
+== Notes sur la sécurité
+
+L'infrastructure étant strictement côté client ("Serverless" via GitHub Pages), le jeton d'authentification (`token`) est lisible publiquement dans le code source de la page web. Cette protection sert exclusivement à prévenir les requêtes robotisées et le spam accidentel sur le point de terminaison du webhook. Il ne s'agit pas d'un système adapté au traitement de données confidentielles.
