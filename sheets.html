@@ -53,7 +53,10 @@
                                 method: 'POST',
                                 // L'utilisation de text/plain permet d'éviter les erreurs CORS avec Google Scripts
                                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                                body: JSON.stringify({ uid: uid })
+                                body: JSON.stringify({
+					uid: uid,
+					token: "7RdFw0qL1fMHbS6mjhr1"
+				})
                             });
 
                             if (response.ok) {
