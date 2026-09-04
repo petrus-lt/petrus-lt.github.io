@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+    .step { display: none; padding: 20px; border: 1px solid #ccc; border-radius: 8px; margin-top: 20px;}
+    .active { display: block; }
+    button { padding: 15px; font-size: 16px; margin: 10px; cursor: pointer; }
+    #reader { width: 300px; margin: 0 auto; }
+  </style>
+  <!-- Librairie pour le QR Code -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+  <h2>Suivi des Emprunts</h2>
+  <div id="status"></div>
+
+  <!-- ETAPE 1 : MASTER TAG -->
+  <div id="step-init" class="step active">
+    <h3>Étape 1 : Initialisation</h3>
+    <p>Scannez le badge Master pour déverrouiller le système.</p>
+    <button onclick="startNfcScan('master')">Scanner Master NFC</button>
+  </div>
+
+  <!-- ETAPE 2 : MATÉRIEL -->
+  <div id="step-equip" class="step">
+    <h3>Étape 2 : Équipement</h3>
+    <p>Scannez le NFC du matériel ou son QR Code.</p>
+    <button onclick="startNfcScan('equip')">Scanner NFC Matériel</button>
+    <button onclick="startQrScan()">Scanner QR Code</button>
+    <div id="reader"></div>
+  </div>
+
+  <!-- ETAPE 3 : MEMBRE -->
+  <div id="step-member" class="step">
+    <h3>Étape 3 : Membre</h3>
+    <p>Scannez le badge du membre emprunteur.</p>
+    <button onclick="startNfcScan('member')">Scanner NFC Membre</button>
+  </div>
+
+  <script>
+    const MASTER_UID = "04:15:ae:b2:54:60:81".toLowerCase();
+    let pendingItem = "";
+    let html5QrcodeScanner = null;
+
+    function setStep(stepId) {
+      document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+      document.getElementById(stepId).classList.add('active');
+    }
+
+    function showStatus(msg) {
+      document.getElementById('status').innerHTML = `<b>${msg}</b>`;
+    }
+
+    async function startNfcScan(context) {
+      try {
+        const ndef = new NDEFReader();
+        await ndef.scan();
+        showStatus("Approchez le tag NFC...");
+        
+        ndef.onreading = event => {
+          let uid = event.serialNumber.toLowerCase();
+          
+          if (context === 'master') {
+            if (uid === MASTER_UID) {
+              showStatus("Système déverrouillé.");
+              setStep('step-equip');
+            } else {
+              showStatus("Badge Master invalide.");
+            }
+          } 
+          else if (context === 'equip') {
+            pendingItem = uid;
+            showStatus("Matériel scanné : " + uid);
+            setStep('step-member');
+          } 
+          else if (context === 'member') {
+            showStatus("Traitement en cours...");
+            google.script.run
+              .withSuccessHandler(res => {
+                showStatus(res);
+                setTimeout(() => setStep('step-init'), 3000); // Retour au début
+              })
+              .withFailureHandler(err => showStatus("Erreur : " + err.message))
+              .enregistrerEmprunt(pendingItem, event.serialNumber); // Le backend gère la casse si besoin
+          }
+        };
+      } catch (error) {
+        showStatus("Erreur NFC : L'appareil ne supporte pas Web NFC ou HTTPS est manquant.");
+      }
+    }
+
+    function startQrScan() {
+      if(!html5QrcodeScanner) {
+        html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+      }
+      html5QrcodeScanner.render((decodedText, decodedResult) => {
+        pendingItem = decodedText; // Le QR code doit contenir l'ID du matériel
+        html5QrcodeScanner.clear();
+        showStatus("Matériel scanné (QR) : " + decodedText);
+        setStep('step-member');
+      }, (errorMessage) => {
+        // erreurs de scan en temps réel (ignorées en général)
+      });
+    }
+  </script>
+</body>
+</html>

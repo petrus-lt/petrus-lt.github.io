@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    input, button { margin: 10px 0; padding: 10px; width: 100%; max-width: 300px; }
+  </style>
+</head>
+<body>
+  <h2>Ajouter un Membre</h2>
+  <button id="scanNfcBtn">Scanner le badge NFC</button>
+  <p id="uidDisplay">UID : En attente...</p>
+  
+  <input type="text" id="nom" placeholder="Nom">
+  <input type="text" id="prenom" placeholder="Prénom">
+  <button onclick="submitMember()">Enregistrer</button>
+  
+  <p id="status"></p>
+
+  <script>
+    let currentUid = "";
+
+    document.getElementById('scanNfcBtn').addEventListener('click', async () => {
+      try {
+        const ndef = new NDEFReader();
+        await ndef.scan();
+        document.getElementById('status').innerText = "Approchez le badge...";
+        ndef.onreading = event => {
+          // Formatage de l'UID (serialNumber de l'API Web NFC)
+          currentUid = event.serialNumber;
+          document.getElementById('uidDisplay').innerText = "UID : " + currentUid;
+          document.getElementById('status').innerText = "Badge lu !";
+        };
+      } catch (error) {
+        document.getElementById('status').innerText = "Erreur NFC : " + error;
+      }
+    });
+
+    function submitMember() {
+      const nom = document.getElementById('nom').value;
+      const prenom = document.getElementById('prenom').value;
+      if(!currentUid || !nom || !prenom) return alert("Remplissez tout et scannez un badge.");
+      
+      document.getElementById('status').innerText = "Enregistrement...";
+      google.script.run.withSuccessHandler(res => {
+        document.getElementById('status').innerText = res;
+      }).ajouterMembre(currentUid, nom, prenom);
+    }
+  </script>
+</body>
+</html>
